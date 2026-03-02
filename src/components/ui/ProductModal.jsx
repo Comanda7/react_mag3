@@ -69,14 +69,15 @@ function ProductModal({ product, onClose }) {
                 onClick={() => handleToggle(product.id)}
                 title={fav ? 'Удалить из избранного' : 'Добавить в избранное'}
               >
-                {fav ? '❤️' : '🤍'} {fav ? 'В избранном' : 'В избранное'}
+                {fav ? '❤️' : '🤍'}
               </button>
               <button
                 className={`btn${inCart ? ' btn-secondary' : ' btn-primary'}`}
                 onClick={() => handleAdd(product.id)}
                 disabled={outOfStock}
+                title={outOfStock ? 'Нет в наличии' : inCart ? 'Убрать из корзины' : 'В корзину'}
               >
-                🛒 {outOfStock ? 'Нет в наличии' : inCart ? 'Убрать из корзины' : 'В корзину'}
+                🛒
               </button>
               {/* useParams-демонстрация: ссылка на полную страницу товара */}
               <Link

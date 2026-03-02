@@ -72,11 +72,15 @@ function CatalogPage() {
         </div>
 
         <div className="catalog-toolbar">
-          <Input
-            placeholder="🔍 Поиск по названию…"
-            value={search}
-            onChange={e => setParam('search', e.target.value)}
-          />
+          <div className="search-wrap">
+            <span className="search-icon">🔍</span>
+            <Input
+              placeholder="Поиск по названию…"
+              value={search}
+              onChange={e => setParam('search', e.target.value)}
+              className="search-with-icon"
+            />
+          </div>
           <select
             className="select-sort"
             value={sort}
