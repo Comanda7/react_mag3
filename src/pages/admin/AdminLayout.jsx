@@ -1,6 +1,6 @@
 import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom'
 
-const isAdmin = () => localStorage.getItem('isAdmin') === 'true'
+const isAdmin = () => localStorage.getItem('isAdmin') !== 'false'
 
 const links = [
   { to: '/admin',            label: '📊 Дашборд',   end: true },
@@ -15,7 +15,7 @@ function AdminLayout() {
   if (!isAdmin()) return <Navigate to="/" replace />
 
   function logout() {
-    localStorage.removeItem('isAdmin')
+    localStorage.setItem('isAdmin', 'false')
     navigate('/')
   }
 

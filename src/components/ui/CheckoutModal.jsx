@@ -6,7 +6,11 @@ import { formatPrice } from '../../utils/formatters'
  * @param {{ total: number, onConfirm: (fields: object) => void, onClose: () => void }} props
  */
 function CheckoutModal({ total, onConfirm, onClose }) {
-  const [fields, setFields] = useState({ name: '', phone: '', address: '' })
+  const [fields, setFields] = useState({
+    name:    'Иван Петров',
+    phone:   '+7 (999) 123-45-67',
+    address: 'г. Москва, ул. Примерная, д. 1, кв. 1',
+  })
   const [errors, setErrors] = useState({})
 
   useEffect(() => {

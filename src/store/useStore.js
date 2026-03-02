@@ -19,8 +19,8 @@ const useStore = create((set, get) => ({
   removeFromCart(id) { set({ cart: svcRemove(id), stats: getProductStats() }) },
   updateCartQty(id, delta) { set({ cart: svcQty(id, delta) }) },
 
-  placeOrder() {
-    const order = svcOrder()
+  placeOrder(fields) {
+    const order = svcOrder(fields)
     if (order) set({ cart: getCart(), orders: getOrderHistory(), products: getProducts(), stats: getProductStats() })
     return order
   },

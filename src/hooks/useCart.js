@@ -18,8 +18,8 @@ export default function useCart() {
     else        { addToCart(productId);      notify?.push('Добавлено в корзину ✅') }
   }
 
-  const handleCheckout = () => {
-    const order = placeOrder()
+  const handleCheckout = (fields) => {
+    const order = placeOrder(fields)
     if (order) notify?.push(`Заказ #${order.id} оформлен! 🎉`)
     return order
   }
