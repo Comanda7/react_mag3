@@ -93,3 +93,8 @@ export function updateProductStock(productId, newStock) {
   const prods = getProducts().map(p => p.id === productId ? { ...p, stock: newStock } : p)
   saveProducts(prods); return prods
 }
+
+export function updateProductImage(productId, imageUrl) {
+  const prods = getProducts().map(p => p.id === productId ? { ...p, imageUrl } : p)
+  saveProducts(prods); return prods
+}

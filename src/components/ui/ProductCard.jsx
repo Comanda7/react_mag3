@@ -28,7 +28,12 @@ function ProductCard({ product }) {
         title="Быстрый просмотр"
         aria-label={`Быстрый просмотр: ${product.name}`}
       >
-        <div className="product-image">{product.image}</div>
+        <div className="product-image">
+          {product.imageUrl
+            ? <img src={product.imageUrl} alt={product.name} className="product-img" />
+            : <span className="product-emoji">{product.image}</span>
+          }
+        </div>
         <span className="product-image-hint">🔍 Быстрый просмотр</span>
       </button>
       <div className="product-category">{CATEGORY_NAMES[product.category]}</div>

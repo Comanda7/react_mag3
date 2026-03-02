@@ -38,7 +38,10 @@ function ProductModal({ product, onClose }) {
         <div className="modal-product">
           {/* Изображение / эмодзи */}
           <div className="modal-product-image">
-            <span className="modal-product-emoji">{product.image}</span>
+            {product.imageUrl
+              ? <img src={product.imageUrl} alt={product.name} className="modal-product-img" />
+              : <span className="modal-product-emoji">{product.image}</span>
+            }
           </div>
 
           {/* Информация */}

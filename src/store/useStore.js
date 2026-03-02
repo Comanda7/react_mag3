@@ -3,7 +3,7 @@ import {
   getFavorites, getCart, getOrderHistory, getProducts, getProductStats,
   toggleFavorite as svcToggleFav, addToCart as svcAdd, removeFromCart as svcRemove,
   updateCartQty as svcQty, placeOrder as svcOrder, updateOrderStatus as svcStatus,
-  updateProductStock as svcStock,
+  updateProductStock as svcStock, updateProductImage as svcImage,
 } from '../services/storageService'
 
 const useStore = create((set, get) => ({
@@ -27,6 +27,7 @@ const useStore = create((set, get) => ({
 
   updateOrderStatus(id, status) { set({ orders: svcStatus(id, status), stats: getProductStats() }) },
   updateProductStock(id, stock) { set({ products: svcStock(id, stock) }) },
+  updateProductImage(id, imageUrl) { set({ products: svcImage(id, imageUrl) }) },
 
   cartCount:  () => get().cart.reduce((s, i) => s + i.quantity, 0),
   cartTotal:  () => get().cart.reduce((sum, item) => {
