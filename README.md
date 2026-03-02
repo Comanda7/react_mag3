@@ -319,3 +319,69 @@ docs: обновить README
 ## Лицензия
 
 MIT  используйте свободно в учебных целях.
+
+---
+
+## Как выглядит репозиторий на GitHub и как этого добились
+
+После выполнения всех команд выше репозиторий на GitHub выглядит так:
+
+```
+RishatRita77 / react_mag3                              Public
+
+docs: add GitHub deployment guide to README   95ba0f6  1 minute ago
+
+src/                    first commit           11 minutes ago
+.gitignore              first commit           11 minutes ago
+README.md               docs: add GitHub...    1 minute ago
+index.html              first commit           11 minutes ago
+package-lock.json       first commit           11 minutes ago
+package.json            first commit           11 minutes ago
+vite.config.js          first commit           11 minutes ago
+```
+
+### Что означает каждая строка
+
+| Элемент | Что это |
+|---------|---------|
+| `RishatRita77 / react_mag3` | Имя пользователя / название репозитория |
+| `Public` | Репозиторий открытый (виден всем) |
+| `95ba0f6` | Хэш последнего коммита (короткий SHA) |
+| `1 minute ago` | Когда был сделан последний коммит |
+| `first commit` | Сообщение коммита, которым файл был добавлен |
+| `docs: add GitHub...` | Сообщение второго коммита (обновление README) |
+
+### Почему видно два коммита
+
+```
+first commit                          git commit -m "first commit"
+docs: add GitHub deployment guide     git commit -m "docs: add GitHub..."
+```
+
+Были сделаны **два коммита**:
+1. `git commit -m "first commit"`  загрузил все файлы проекта сразу
+2. `git commit -m "docs: add GitHub deployment guide to README"`  добавил инструкцию в README.md
+
+Именно поэтому у разных файлов разные подписи:
+- `src/`, `index.html`, `package.json` и др.  помечены `first commit`
+- `README.md`  помечен `docs: add GitHub deployment guide to README`
+
+### Как повторить это с нуля
+
+```bash
+# Шаг 1  инициализация и первый коммит со ВСЕМИ файлами
+git init
+git add .
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/ВашЛогин/react_mag3.git
+git push -u origin main
+
+# Шаг 2  изменили только README.md, делаем второй коммит
+git add README.md
+git commit -m "docs: add GitHub deployment guide to README"
+git push
+```
+
+> Каждый `git commit` создаёт **снимок** (snapshot) состояния файлов.
+> На GitHub в списке файлов отображается **последний коммит, который затронул этот файл**.
