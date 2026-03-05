@@ -256,6 +256,542 @@ src/
 
 ---
 
+## 📖 Описание файлов
+
+> Кликайте на имя файла, чтобы увидеть его описание и код ↓
+
+<details>
+<summary><a name="router-index"></a><b>⚡ router/index.jsx</b> — вся конфигурация маршрутов</summary>
+
+---
+
+Центральный файл роутера. Использует Data Router API (`createBrowserRouter` + `RouterProvider`). Все страницы загружаются лениво через `React.lazy`. Содержит `RootShell`, `ProtectedRoute`, `ScrollRestoration` и полный список маршрутов с `handle.crumb`.
+
+```jsx
+import { lazy, Suspense } from 'react'
+import {
+  createBrowserRouter, RouterProvider,
+  Navigate, Outlet, ScrollRestoration,
+} from 'react-router-dom'
+import PageSpinner from '../components/ui/PageSpinner'
+
+// Lazy-импорты — каждая страница грузится только при первом посещении
+const CatalogPage   = lazy(() => import('../pages/CatalogPage'))
+const CartPage      = lazy(() => import('../pages/CartPage'))
+const FavoritesPage = lazy(() => import('../pages/FavoritesPage'))
+const ProfilePage   = lazy(() => import('../pages/ProfilePage'))
+const ProductPage   = lazy(() => import('../pages/ProductPage'))
+const AdminLayout   = lazy(() => import('../pages/admin/AdminLayout'))
+// ... остальные страницы
+
+// Root Shell — общая обёртка: Header + Outlet + Footer
+function RootShell() {
+  return (
+    <>
+      <ScrollRestoration />
+      <div className="app-shell">
+        <Header />
+        <div className="app-body">
+          <Suspense fallback={<PageSpinner />}>
+            <Outlet />
+          </Suspense>
+        </div>
+        <Footer />
+      </div>
+    </>
+  )
+}
+
+// ProtectedRoute — защита Админки
+function ProtectedRoute({ children }) {
+  const isAdmin = localStorage.getItem('isAdmin') !== 'false'
+  if (!isAdmin) return <Navigate to="/" replace state={{ reason: 'auth' }} />
+  return children
+}
+
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <RootShell />,
+    errorElement: <ErrorBoundaryPage />,
+    children: [
+      { index: true,       element: <CatalogPage />,   handle: { crumb: 'Каталог' } },
+      { path: 'product/:id', element: <ProductPage />, handle: { crumb: 'Товар' } },
+      { path: 'cart',      element: <CartPage />,      handle: { crumb: 'Корзина' } },
+      { path: 'favorites', element: <FavoritesPage />, handle: { crumb: 'Избранное' } },
+      { path: 'profile',   element: <ProfilePage />,   handle: { crumb: 'Кабинет' } },
+      {
+        path: 'admin',
+        element: <ProtectedRoute><AdminLayout /></ProtectedRoute>,
+        children: [
+          { index: true,          element: <AdminDashboard /> },
+          { path: 'products',     element: <AdminProducts /> },
+          { path: 'orders',       element: <AdminOrders /> },
+          { path: 'categories',   element: <AdminCategories /> },
+        ],
+      },
+      { path: '*', element: <NotFoundPage /> },
+    ],
+  },
+])
+
+export function AppRouter() {
+  return <RouterProvider router={router} />
+}
+```
+
+---
+</details>
+
+<details>
+<summary><a name="catalogpage"></a><b>🛍️ CatalogPage.jsx</b> — каталог + useSearchParams</summary>
+
+---
+
+Главная страница. Все фильтры (категория, поиск, сортировка, страница) живут прямо в URL через `useSearchParams`. URL можно скопировать — фильтры сохранятся.
+
+```jsx
+import { useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import useStore from '../store/useStore'
+
+function CatalogPage() {
+  const products = useStore(s => s.products)
+
+  // Все параметры фильтрации — прямо в URL
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const category = searchParams.get('category') || 'all'
+  const search   = searchParams.get('search')   || ''
+  const sort     = searchParams.get('sort')      || ''
+  const page     = parseInt(searchParams.get('page') || '1', 10)
+
+  // Хелпер: обновить один параметр, сбросить page на 1
+  const setParam = (key, value) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set(key, value); else next.delete(key)
+      next.set('page', '1')
+      return next
+    }, { replace: true })
+  }
+
+  // Фильтрация + сортировка через useMemo
+  const filtered = useMemo(() => {
+    let list = [...products]
+    if (category !== 'all') list = list.filter(p => p.category === category)
+    if (search.trim())      list = list.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
+    if (sort === 'asc')     list.sort((a, b) => a.price - b.price)
+    if (sort === 'desc')    list.sort((a, b) => b.price - a.price)
+    return list
+  }, [products, category, search, sort])
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
+  const pageItems  = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
+  // ...render
+}
+```
+
+> URL при использовании: `/?category=phones&search=iphone&sort=asc&page=2`
+
+---
+</details>
+
+<details>
+<summary><a name="productpage"></a><b>📦 ProductPage.jsx</b> — страница товара + useParams</summary>
+
+---
+
+Страница `/product/:id`. Использует `useParams` для получения ID, `useNavigate` для кнопки «Назад» и перехода. Показывает похожие товары той же категории.
+
+```jsx
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import useStore from '../store/useStore'
+
+function ProductPage() {
+  const { id }   = useParams()       // ← извлекаем :id из URL
+  const navigate = useNavigate()
+  const products = useStore(s => s.products)
+
+  const product = products.find(p => p.id === Number(id))
+
+  if (!product) {
+    return (
+      <main className="container page-content">
+        <h1>Товар не найден</h1>
+        <p>Товар с ID <code>{id}</code> не существует.</p>
+        <button className="btn btn-primary" onClick={() => navigate(-1)}>← Назад</button>
+      </main>
+    )
+  }
+
+  // Похожие товары той же категории (кроме текущего)
+  const related = products
+    .filter(p => p.category === product.category && p.id !== product.id)
+    .slice(0, 4)
+
+  return (
+    <main className="container page-content">
+      <Breadcrumbs />
+      <button onClick={() => navigate(-1)}>← Назад</button>
+      <h1>{product.image} {product.name}</h1>
+      <p>{formatPrice(product.price)}</p>
+      {/* ... кнопки корзины/избранного, похожие товары */}
+    </main>
+  )
+}
+```
+
+---
+</details>
+
+<details>
+<summary><a name="cartpage"></a><b>🛒 CartPage.jsx</b> — корзина + useNavigate</summary>
+
+---
+
+Страница корзины. После оформления заказа использует `useNavigate` с `state` для передачи ID заказа на страницу профиля.
+
+```jsx
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import useCart from '../hooks/useCart'
+import CheckoutModal from '../components/ui/CheckoutModal'
+
+function CartPage() {
+  const navigate = useNavigate()
+  const { cart, products, cartTotal, removeFromCart, updateCartQty, handleCheckout } = useCart()
+  const [showCheckout, setShowCheckout] = useState(false)
+
+  const onConfirm = (fields) => {
+    const order = handleCheckout(fields)
+    setShowCheckout(false)
+    // Передаём ID заказа через location.state → ProfilePage его подхватит
+    navigate('/profile', order ? { state: { fromOrder: order.id } } : {})
+  }
+
+  return (
+    <>
+      {showCheckout && (
+        <CheckoutModal total={cartTotal} onConfirm={onConfirm} onClose={() => setShowCheckout(false)} />
+      )}
+      <main className="container page-content">
+        {/* ...таблица товаров с +/- и кнопкой оформления */}
+      </main>
+    </>
+  )
+}
+```
+
+---
+</details>
+
+<details>
+<summary><a name="profilepage"></a><b>👤 ProfilePage.jsx</b> — личный кабинет + useLocation</summary>
+
+---
+
+Личный кабинет. Получает ID оформленного заказа через `useLocation().state.fromOrder` и отображает баннер успеха. Показывает статистику, историю заказов, избранное и текущую корзину.
+
+```jsx
+import { useLocation } from 'react-router-dom'
+import useStore from '../store/useStore'
+
+function ProfilePage() {
+  const { state } = useLocation()
+  const recentOrderId = state?.fromOrder  // ← передаётся из CartPage после оформления
+
+  const orders   = useStore(s => s.orders)
+  const products = useStore(s => s.products)
+  const favorites = useStore(s => s.favorites)
+  const cart     = useStore(s => s.cart)
+
+  const totalSpent = orders.reduce((s, o) => s + (o.total || 0), 0)
+
+  return (
+    <main className="container page-content">
+      {recentOrderId && (
+        <div className="order-success-banner">
+          ✅ Заказ <strong>#{recentOrderId}</strong> успешно оформлен!
+        </div>
+      )}
+      {/* stat cards, история заказов, избранное, корзина */}
+    </main>
+  )
+}
+```
+
+---
+</details>
+
+<details>
+<summary><a name="header-jsx"></a><b>🏠 Header.jsx</b> — шапка + NavLink + useNavigate</summary>
+
+---
+
+Шапка приложения. `NavLink` автоматически добавляет класс `active`. `useNavigate` используется для перенаправления при поиске. Содержит бургер-меню, счётчики корзины/избранного, кнопку входа/выхода.
+
+```jsx
+import { Link, NavLink, useNavigate } from 'react-router-dom'
+import useStore from '../../store/useStore'
+
+function Header() {
+  const navigate  = useNavigate()
+  const [searchVal, setSearch] = useState('')
+  const favCount  = useStore(s => s.favorites.length)
+  const cartCount = useStore(s => s.cart.reduce((sum, i) => sum + i.quantity, 0))
+
+  const handleSearch = (e) => {
+    e.preventDefault()
+    if (searchVal.trim()) navigate(`/?search=${encodeURIComponent(searchVal.trim())}`)
+  }
+
+  return (
+    <header className="header">
+      <Link to="/" className="logo">🛒 TechStore</Link>
+
+      <form className="header-search" onSubmit={handleSearch}>
+        <input placeholder="Поиск товаров…" value={searchVal} onChange={e => setSearch(e.target.value)} />
+        <button type="submit">🔍</button>
+      </form>
+
+      <nav>
+        <NavLink to="/" end className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Каталог</NavLink>
+        <NavLink to="/profile"  className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Кабинет</NavLink>
+      </nav>
+
+      <NavLink to="/favorites" className={({ isActive }) => `icon-btn${isActive ? ' icon-btn--active' : ''}`}>
+        🤍 {favCount > 0 && <span className="badge">{favCount}</span>}
+      </NavLink>
+      <NavLink to="/cart" className={({ isActive }) => `icon-btn${isActive ? ' icon-btn--active' : ''}`}>
+        🛒 {cartCount > 0 && <span className="badge">{cartCount}</span>}
+      </NavLink>
+    </header>
+  )
+}
+```
+
+---
+</details>
+
+<details>
+<summary><a name="adminlayout-jsx"></a><b>⚙️ AdminLayout.jsx</b> — обёртка админки + NavLink + Outlet</summary>
+
+---
+
+Обёртка всех admin-страниц. Проверяет права через `localStorage.getItem('isAdmin')`, при отказе — `<Navigate to="/" />`. Навигация через `NavLink`. Дочерние маршруты рендерятся в `<Outlet />`.
+
+```jsx
+import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom'
+
+const isAdmin = () => localStorage.getItem('isAdmin') !== 'false'
+
+const links = [
+  { to: '/admin',            label: '📊 Дашборд',   end: true },
+  { to: '/admin/products',   label: '📦 Товары'              },
+  { to: '/admin/orders',     label: '🛒 Заказы'              },
+  { to: '/admin/categories', label: '🏷️ Категории'          },
+]
+
+function AdminLayout() {
+  const navigate = useNavigate()
+  if (!isAdmin()) return <Navigate to="/" replace />
+
+  return (
+    <div className="admin-layout">
+      <aside className="admin-sidebar">
+        <div className="admin-logo">⚙️ Админ</div>
+        <nav className="admin-nav">
+          {links.map(l => (
+            <NavLink key={l.to} to={l.to} end={l.end}
+              className={({ isActive }) => 'admin-link' + (isActive ? ' admin-link--active' : '')}>
+              {l.label}
+            </NavLink>
+          ))}
+        </nav>
+        <button className="btn btn-outline admin-logout"
+          onClick={() => { localStorage.setItem('isAdmin', 'false'); navigate('/') }}>
+          Выйти
+        </button>
+      </aside>
+      <div className="admin-content">
+        <Outlet />   {/* ← сюда рендерятся дочерние маршруты /admin/* */}
+      </div>
+    </div>
+  )
+}
+```
+
+> Чтобы открыть админку в браузере: `localStorage.setItem('isAdmin', 'true'); location.reload()`
+
+---
+</details>
+
+<details>
+<summary><a name="breadcrumbs-jsx"></a><b>🧭 Breadcrumbs.jsx + useBreadcrumbs.js</b> — хлебные крошки + useMatches</summary>
+
+---
+
+`useBreadcrumbs.js` использует `useMatches()` (React Router v6.4+). Каждый маршрут в конфиге передаёт `handle: { crumb: 'Название' }`. Хук собирает все совпавшие маршруты и строит цепочку крошек.
+
+```js
+// useBreadcrumbs.js
+import { useMatches } from 'react-router-dom'
+
+export default function useBreadcrumbs() {
+  const matches = useMatches()
+  return matches
+    .filter(m => m.handle?.crumb)
+    .map((m, i, arr) => ({
+      label: typeof m.handle.crumb === 'function' ? m.handle.crumb(m.data) : m.handle.crumb,
+      to:    i < arr.length - 1 ? m.pathname : null,  // последняя крошка — текущая страница
+    }))
+}
+```
+
+```jsx
+// Breadcrumbs.jsx — компонент отображения
+import { Link } from 'react-router-dom'
+import useBreadcrumbs from '../../hooks/useBreadcrumbs'
+
+function Breadcrumbs() {
+  const crumbs = useBreadcrumbs()
+  if (crumbs.length <= 1) return null
+
+  return (
+    <nav className="breadcrumbs" aria-label="breadcrumb">
+      <span>🏠</span>
+      {crumbs.map((c, i) => (
+        <span key={i} className="bc-item">
+          <span className="bc-sep">/</span>
+          {c.to ? <Link to={c.to} className="bc-link">{c.label}</Link>
+                : <span className="bc-current">{c.label}</span>}
+        </span>
+      ))}
+    </nav>
+  )
+}
+```
+
+---
+</details>
+
+<details>
+<summary><a name="errorboundarypage"></a><b>💥 ErrorBoundaryPage.jsx</b> — обработка ошибок + useRouteError</summary>
+
+---
+
+Отображается как `errorElement` корневого маршрута. Использует `useRouteError()` для получения деталей ошибки.
+
+```jsx
+import { useRouteError, useNavigate, Link } from 'react-router-dom'
+
+function ErrorBoundaryPage() {
+  const error    = useRouteError()
+  const navigate = useNavigate()
+
+  return (
+    <div className="container page-content">
+      <div className="not-found-emoji">💥</div>
+      <h1>Произошла ошибка</h1>
+      <p>{error?.statusText || error?.message || 'Неизвестная ошибка'}</p>
+      <div className="not-found-actions">
+        <button className="btn btn-primary" onClick={() => navigate(-1)}>← Назад</button>
+        <Link to="/" className="btn btn-secondary">🏠 На главную</Link>
+      </div>
+    </div>
+  )
+}
+```
+
+---
+</details>
+
+<details>
+<summary><a name="notfoundpage"></a><b>🔍 NotFoundPage.jsx</b> — страница 404 + path="*"</summary>
+
+---
+
+Catch-all маршрут `path="*"`. Показывает текущий путь через `useLocation`, кнопку «Назад» через `useNavigate(-1)` и учебный блок с объяснением как работает 404 в React Router v6.
+
+```jsx
+import { useNavigate, Link, useLocation } from 'react-router-dom'
+
+function NotFoundPage() {
+  const navigate    = useNavigate()
+  const { pathname } = useLocation()
+
+  return (
+    <main className="container page-content">
+      <div className="not-found-emoji">🔍</div>
+      <h1>404 — Страница не найдена</h1>
+      <p>Маршрут <code>{pathname}</code> не существует.</p>
+      <div className="not-found-actions">
+        <button className="btn btn-primary" onClick={() => navigate(-1)}>← Назад</button>
+        <Link to="/" className="btn btn-secondary">🏠 На главную</Link>
+      </div>
+      <div className="router-info-box">
+        <h3>Как работает 404 в React Router v6</h3>
+        <ul>
+          <li>Маршрут <code>path="*"</code> — «поймать всё» — указан последним в конфиге роутера.</li>
+          <li><code>useLocation().pathname</code> → текущий путь: <code>{pathname}</code></li>
+          <li><code>useNavigate()(-1)</code> → кнопка «Назад» программно.</li>
+        </ul>
+      </div>
+    </main>
+  )
+}
+```
+
+---
+</details>
+
+<details>
+<summary><a name="usestore-js"></a><b>🗄️ useStore.js</b> — Zustand единый стор</summary>
+
+---
+
+Центральное хранилище состояния на Zustand. Содержит `products`, `cart`, `favorites`, `orders`, `user`. Все мутации делегируются в `storageService` и синхронизируются с `localStorage`.
+
+```js
+import { create } from 'zustand'
+import {
+  getFavorites, getCart, getOrderHistory, getProducts,
+  toggleFavorite as svcToggleFav, addToCart as svcAdd,
+  removeFromCart as svcRemove, updateCartQty as svcQty,
+  placeOrder as svcOrder,
+} from '../services/storageService'
+
+const useStore = create((set, get) => ({
+  products:  getProducts(),
+  favorites: getFavorites(),
+  cart:      getCart(),
+  orders:    getOrderHistory(),
+  user:      JSON.parse(localStorage.getItem('auth_user') || 'null'),
+
+  // Авторизация
+  login(email, password)          { /* ... */ },
+  logout()                        { localStorage.removeItem('auth_user'); set({ user: null }) },
+  register(name, email, password) { /* ... */ },
+
+  // Корзина
+  addToCart(id)           { set({ cart: svcAdd(id) }) },
+  removeFromCart(id)      { set({ cart: svcRemove(id) }) },
+  updateCartQty(id, delta){ set({ cart: svcQty(id, delta) }) },
+
+  // Избранное
+  toggleFavorite(id)      { set({ favorites: svcToggleFav(id) }) },
+
+  // Заказы
+  placeOrder(fields)      { const order = svcOrder(fields); if (order) set({ cart: getCart(), orders: getOrderHistory() }) },
+}))
+```
+
+---
+</details>
+
+---
+
 ## Как залить проект на GitHub
 
 ### 1. Первая загрузка (новый репозиторий)
